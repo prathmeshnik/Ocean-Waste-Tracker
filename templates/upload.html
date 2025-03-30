@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="text-center text-primary mb-4">Upload</h1>
+        <p class="text-center mb-4">Upload images or videos to detect and classify trash in water bodies</p>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card shadow mb-4">
+                    <div class="card-header">
+                        <h3 class="m-0">Upload</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="upload-form" method="POST" enctype="multipart/form-data" action="{{ url_for('upload') }}">
+                            {{ form.hidden_tag() }}
+                            
+                            <div class="upload-area mb-3" id="upload-area">
+                                <div class="text-center">
+                                    <i class="fas fa-cloud-upload-alt fa-4x mb-3 text-primary"></i>
+                                    <h4>Drop your Image Here</h4>
+                                    <p class="text-muted">or</p>
+                                    <button type="button" id="browse-button" class="btn btn-primary">Browse Files</button>
+                                    <div class="selected-file-name mt-2" style="display: none;"></div>
+                                </div>
+                                
+                                {{ form.file(class="d-none", id="file") }}
+                                
+                                {% if form.file.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.file.errors %}
+                                    <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="file-preview mb-3 text-center" style="display: none;"></div>
+                            
+                            <div class="form-text mb-3">
+                                <p><strong>Supported formats:</strong> JPG, JPEG, PNG, MP4, AVI, MOV</p>
+                                <p><strong>Maximum file size:</strong> 16MB</p>
+                            </div>
+                            
+                            <div class="d-grid">
+                                {{ form.submit(class="btn btn-primary btn-lg") }}
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h3 class="m-0">Result</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="results-area" id="results-container">
+                            <div class="text-center py-5">
+                                <i class="fas fa-info-circle fa-3x mb-3 text-muted"></i>
+                                <p class="lead">Upload an image or video to see detection results here.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow mt-4">
+                    <div class="card-header">
+                        <h3 class="m-0">Report</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>This section will display the detailed analysis and report of the uploaded image.</p>
+                        <p class="text-muted">Reports include:</p>
+                        <ul class="text-muted">
+                            <li>Types of trash detected</li>
+                            <li>Confidence levels for each detection</li>
+                            <li>Visual representation of results</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+<script src="{{ url_for('static', filename='js/detect.js') }}"></script>
+{% endblock %}

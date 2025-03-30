@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="text-center text-primary mb-4">Trash Detection Report</h1>
+        
+        <div class="d-flex justify-content-end mb-4">
+            <a href="{{ url_for('download_report') }}" class="btn btn-success">
+                <i class="fas fa-download me-2"></i>Download Full Report (Excel)
+            </a>
+        </div>
+        
+        {% if detections %}
+        <div class="card shadow mb-5">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped report-table">
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Detected Trash</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detection in detections %}
+                            <tr>
+                                <td>
+                                    <img src="{{ url_for('static', filename=detection.image_path.replace('static/', '')) }}" alt="Trash Image" class="img-thumbnail" width="100">
+                                </td>
+                                <td>{{ detection.trash_type }}</td>
+                                <td>{{ detection.detection_date.strftime('%B %d, %Y') }}</td>
+                                <td>{{ detection.detection_date.strftime('%I:%M %p') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h3 class="m-0">Trash Type Distribution</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="trash-type-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 mb-4">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h3 class="m-0">Detection Timeline</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="detection-timeline-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card shadow">
+            <div class="card-header">
+                <h3 class="m-0">Detection Summary</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="text-center">
+                            <h2 class="text-primary">{{ detections|length }}</h2>
+                            <p>Total Detections</p>
+                        </div>
+                    </div>
+                    
+                    {% set trash_types = [] %}
+                    {% for detection in detections %}
+                        {% if detection.trash_type not in trash_types %}
+                            {% set trash_types = trash_types + [detection.trash_type] %}
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="text-center">
+                            <h2 class="text-primary">{{ trash_types|length }}</h2>
+                            <p>Trash Types</p>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="text-center">
+                            <h2 class="text-primary">
+                                {% set avg_confidence = 0 %}
+                                {% for detection in detections %}
+                                    {% set avg_confidence = avg_confidence + detection.confidence %}
+                                {% endfor %}
+                                {{ "%.2f"|format(avg_confidence / detections|length * 100) }}%
+                            </h2>
+                            <p>Avg. Confidence</p>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="text-center">
+                            <h2 class="text-primary">
+                                {% if detections %}
+                                    {{ detections[0].detection_date.strftime('%b %d') }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </h2>
+                            <p>Latest Detection</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% else %}
+        <div class="card shadow">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-search fa-4x mb-3 text-muted"></i>
+                <h3>No Detection Results Found</h3>
+                <p class="text-muted">Upload images or videos to start detecting trash in water bodies.</p>
+                <div class="mt-4">
+                    <a href="{{ url_for('upload') }}" class="btn btn-primary me-2">
+                        <i class="fas fa-upload me-2"></i>Upload Media
+                    </a>
+                    <a href="{{ url_for('livestream') }}" class="btn btn-secondary">
+                        <i class="fas fa-video me-2"></i>Live Stream
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if detections %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Data for charts
+        const detectionData = {
+            trashTypes: {},
+            dates: {}
+        };
+        
+        // Process detections for charts
+        {% for detection in detections %}
+            // Count trash types
+            const trashType = "{{ detection.trash_type }}";
+            if (detectionData.trashTypes[trashType]) {
+                detectionData.trashTypes[trashType]++;
+            } else {
+                detectionData.trashTypes[trashType] = 1;
+            }
+            
+            // Count by date
+            const date = "{{ detection.detection_date.strftime('%Y-%m-%d') }}";
+            if (detectionData.dates[date]) {
+                detectionData.dates[date]++;
+            } else {
+                detectionData.dates[date] = 1;
+            }
+        {% endfor %}
+        
+        // Trash Type Chart
+        const trashTypeCtx = document.getElementById('trash-type-chart').getContext('2d');
+        new Chart(trashTypeCtx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(detectionData.trashTypes),
+                datasets: [{
+                    data: Object.values(detectionData.trashTypes),
+                    backgroundColor: [
+                        '#6a3db3', '#4dabf7', '#51cf66', '#fcc419', '#ff6b6b',
+                        '#cc5de8', '#22b8cf', '#20c997', '#fa5252', '#7950f2'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Distribution of Detected Trash Types',
+                        font: {
+                            size: 16
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Timeline Chart
+        const timelineCtx = document.getElementById('detection-timeline-chart').getContext('2d');
+        const sortedDates = Object.keys(detectionData.dates).sort();
+        
+        new Chart(timelineCtx, {
+            type: 'line',
+            data: {
+                labels: sortedDates.map(date => {
+                    const d = new Date(date);
+                    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }),
+                datasets: [{
+                    label: 'Number of Detections',
+                    data: sortedDates.map(date => detectionData.dates[date]),
+                    borderColor: '#6a3db3',
+                    backgroundColor: 'rgba(106, 61, 179, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Detections Over Time',
+                        font: {
+                            size: 16
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}

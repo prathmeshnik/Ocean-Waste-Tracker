@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="text-center text-primary mb-4">Live Stream</h1>
+        <p class="text-center mb-4">Detect and classify trash in real-time using your camera</p>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card shadow mb-4">
+                    <div class="card-header">
+                        <h3 class="m-0">Live Feed</h3>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="stream-container" style="display: none;">
+                            <video id="video-stream" width="100%" autoplay playsinline></video>
+                            <canvas id="capture-canvas" style="display: none;"></canvas>
+                        </div>
+                        
+                        <div class="text-center py-5" id="stream-placeholder">
+                            <i class="fas fa-video fa-4x mb-3 text-primary"></i>
+                            <h4>Camera Stream Not Active</h4>
+                            <p class="text-muted">Click the Start button to activate your camera</p>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="stream-controls">
+                            <button id="start-stream" class="btn btn-primary">Start</button>
+                            <button id="stop-stream" class="btn btn-danger" style="display: none;">Stop</button>
+                        </div>
+                        <div class="form-text">
+                            <p><strong>Note:</strong> Make sure your camera is properly connected and you've granted camera permissions.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card shadow mb-4">
+                    <div class="card-header">
+                        <h3 class="m-0">Result with data</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="stream-results">
+                            <div class="text-center py-5">
+                                <i class="fas fa-info-circle fa-3x mb-3 text-muted"></i>
+                                <p>Start the stream to see detection results here.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h3 class="m-0">Instructions</h3>
+                    </div>
+                    <div class="card-body">
+                        <ol>
+                            <li>Click the <strong>Start</strong> button to activate your camera</li>
+                            <li>Point your camera at water bodies with potential trash</li>
+                            <li>The system will automatically detect and classify any trash visible</li>
+                            <li>Detections will be saved to your report history</li>
+                            <li>Click <strong>Stop</strong> when you're finished</li>
+                        </ol>
+                        <p class="text-muted mt-3">For best results, ensure good lighting and clear visibility of the water surface.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/livestream.js') }}"></script>
+<script src="{{ url_for('static', filename='js/detect.js') }}"></script>
+{% endblock %}
