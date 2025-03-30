@@ -137,8 +137,13 @@ function handleFileSelect(e) {
             reader.onload = function(e) {
                 const preview = document.querySelector('.file-preview');
                 if (preview) {
-                    preview.innerHTML = `<img src="${e.target.result}" class="img-fluid rounded" alt="Preview">`;
+                    preview.innerHTML = `<img src="${e.target.result}" class="img-fluid rounded" alt="Preview" id="preview-image">`;
                     preview.style.display = 'block';
+                    
+                    // Simulate detection results with bounding boxes
+                    // This is just for demo of the UI - in a real app, this would happen after form submission
+                    // In this demo, we're showing how it would look once implemented
+                    simulateDetectionPreview();
                 }
             };
             reader.readAsDataURL(file);
@@ -156,4 +161,45 @@ function handleFileSelect(e) {
             }
         }
     }
+}
+
+/**
+ * Simulate detection results with bounding boxes for preview
+ * This is just for demonstration purposes
+ */
+function simulateDetectionPreview() {
+    // Wait for the image to load
+    setTimeout(() => {
+        const previewImage = document.getElementById('preview-image');
+        const resultsContainer = document.getElementById('results-container');
+        
+        if (previewImage && resultsContainer) {
+            // Create some sample detection results with bounding boxes
+            const sampleResults = [
+                {
+                    trash_type: 'Plastic Bottle',
+                    confidence: 0.92,
+                    bbox: {
+                        x: 50,
+                        y: 100,
+                        width: 120,
+                        height: 180
+                    }
+                },
+                {
+                    trash_type: 'Plastic Bag',
+                    confidence: 0.78,
+                    bbox: {
+                        x: 250,
+                        y: 150,
+                        width: 100,
+                        height: 100
+                    }
+                }
+            ];
+            
+            // Display the results with bounding boxes
+            displayDetectionResults(sampleResults, resultsContainer, previewImage);
+        }
+    }, 500); // Give the image time to load
 }

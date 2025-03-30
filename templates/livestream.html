@@ -13,8 +13,9 @@
                         <h3 class="m-0">Live Feed</h3>
                     </div>
                     <div class="card-body p-0">
-                        <div class="stream-container" style="display: none;">
+                        <div class="stream-container" style="display: none; position: relative;">
                             <video id="video-stream" width="100%" autoplay playsinline></video>
+                            <canvas id="overlay-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
                             <canvas id="capture-canvas" style="display: none;"></canvas>
                         </div>
                         

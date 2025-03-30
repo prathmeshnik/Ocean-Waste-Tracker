@@ -58,7 +58,7 @@ def detect_trash_in_image(image_path, model):
         model: Loaded model for prediction
         
     Returns:
-        List of dictionaries containing detection results
+        List of dictionaries containing detection results with bounding boxes
     """
     # Preprocess image
     img_path = preprocess_image(image_path)
@@ -68,13 +68,36 @@ def detect_trash_in_image(image_path, model):
     # Make prediction - simplified for demo
     pred = model.predict(img_path)[0]
     
+    # Get image dimensions for bounding box calculations
+    try:
+        with Image.open(img_path) as img:
+            img_width, img_height = img.size
+    except Exception as e:
+        print(f"Error getting image dimensions: {e}")
+        img_width, img_height = 800, 600  # Default dimensions if can't read image
+    
     # Process results
     results = []
     for i, conf in enumerate(pred):
         if conf > 0.2:  # Only include predictions with confidence > 20%
+            # Generate random bounding box for demonstration
+            # In a real model, these would come from the object detection algorithm
+            box_width = random.randint(50, 150)
+            box_height = random.randint(50, 150)
+            
+            # Make sure box is within image boundaries
+            x = random.randint(0, img_width - box_width)
+            y = random.randint(0, img_height - box_height)
+            
             results.append({
                 'trash_type': TRASH_CATEGORIES[i],
-                'confidence': float(conf)
+                'confidence': float(conf),
+                'bbox': {
+                    'x': x,
+                    'y': y,
+                    'width': box_width,
+                    'height': box_height
+                }
             })
     
     # Sort by confidence (descending)
@@ -92,7 +115,7 @@ def detect_trash_in_video(video_path, model, sample_interval=30):
         sample_interval: Process every Nth frame
         
     Returns:
-        List of dictionaries containing detection results
+        List of dictionaries containing detection results with bounding boxes
     """
     # Simplified for demo - just analyze the video file path
     # In a real application, we would extract frames and process them
@@ -101,6 +124,9 @@ def detect_trash_in_video(video_path, model, sample_interval=30):
     if not os.path.exists(video_path):
         print(f"Error: Video file not found at {video_path}")
         return []
+    
+    # Default video dimensions for bounding boxes
+    video_width, video_height = 1280, 720
     
     # For demo purposes, just generate some random detections
     # as if we analyzed several frames
@@ -113,9 +139,24 @@ def detect_trash_in_video(video_path, model, sample_interval=30):
         # Random confidence level between 0.3 and 0.95
         confidence = random.uniform(0.3, 0.95)
         
+        # Generate random bounding box for demonstration
+        box_width = random.randint(50, 200)
+        box_height = random.randint(50, 200)
+        
+        # Make sure box is within video frame boundaries
+        x = random.randint(0, video_width - box_width)
+        y = random.randint(0, video_height - box_height)
+        
         results.append({
             'trash_type': TRASH_CATEGORIES[trash_type_idx],
-            'confidence': float(confidence)
+            'confidence': float(confidence),
+            'bbox': {
+                'x': x,
+                'y': y,
+                'width': box_width,
+                'height': box_height
+            },
+            'frame_timestamp': random.uniform(0, 60)  # Random timestamp in seconds
         })
     
     # Sort by confidence (descending)
@@ -132,10 +173,13 @@ def detect_from_camera(model, camera_index=0):
         camera_index: Camera device index (default: 0 for webcam)
         
     Returns:
-        Generator yielding detection results
+        Generator yielding detection results with bounding boxes
     """
     # Simplified for demo - in real app, we would access camera
     # For demo purposes, just generate random detections
+    
+    # Default camera frame dimensions
+    frame_width, frame_height = 640, 480
     
     try:
         # Simulate real-time processing
@@ -143,17 +187,31 @@ def detect_from_camera(model, camera_index=0):
             # Generate random detections for this frame
             results = []
             
-            # 30% chance of detecting something in a frame
-            if random.random() < 0.3:
+            # 50% chance of detecting something in a frame (increased for demo)
+            if random.random() < 0.5:
                 num_detections = random.randint(1, 3)
                 
                 for _ in range(num_detections):
                     trash_type_idx = random.randint(0, len(TRASH_CATEGORIES) - 1)
                     confidence = random.uniform(0.4, 0.9)
                     
+                    # Generate random bounding box
+                    box_width = random.randint(50, 150)
+                    box_height = random.randint(50, 150)
+                    
+                    # Make sure box is within frame boundaries
+                    x = random.randint(0, frame_width - box_width)
+                    y = random.randint(0, frame_height - box_height)
+                    
                     results.append({
                         'trash_type': TRASH_CATEGORIES[trash_type_idx],
-                        'confidence': float(confidence)
+                        'confidence': float(confidence),
+                        'bbox': {
+                            'x': x,
+                            'y': y,
+                            'width': box_width,
+                            'height': box_height
+                        }
                     })
                 
                 # Sort by confidence

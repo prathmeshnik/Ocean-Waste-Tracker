@@ -157,11 +157,19 @@ function processFrame() {
 }
 
 /**
- * Update the results display
+ * Update the results display and draw bounding boxes
  */
 function updateResults(results) {
     const resultsContainer = document.getElementById('stream-results');
+    const videoElement = document.getElementById('video-stream');
+    const canvasOverlay = document.getElementById('overlay-canvas');
+    
     if (!resultsContainer) return;
+    
+    // Draw bounding boxes on the video feed
+    if (videoElement && canvasOverlay && results.some(r => r.bbox)) {
+        drawLiveDetectionBoxes(results, videoElement, canvasOverlay);
+    }
     
     if (results.length === 0) {
         resultsContainer.innerHTML = '<p>No trash detected in current frame.</p>';
@@ -172,21 +180,79 @@ function updateResults(results) {
     
     results.forEach(result => {
         const confidence = (result.confidence * 100).toFixed(2);
+        const confidenceClass = confidence > 70 ? 'text-success' : (confidence > 40 ? 'text-warning' : 'text-danger');
+        
         html += `
             <div class="result-item">
-                <span class="trash-type">${result.trash_type}</span>
+                <div class="d-flex justify-content-between">
+                    <span class="trash-type">${result.trash_type}</span>
+                    <span class="${confidenceClass}">${confidence}%</span>
+                </div>
                 <div class="progress">
-                    <div class="progress-bar bg-success" role="progressbar" style="width: ${confidence}%" 
+                    <div class="progress-bar" role="progressbar" style="width: ${confidence}%; background-color: var(--primary-color)" 
                         aria-valuenow="${confidence}" aria-valuemin="0" aria-valuemax="100">
-                        ${confidence}%
                     </div>
                 </div>
+                ${result.bbox ? `
+                <div class="bbox-info mt-1">
+                    <small class="text-muted">
+                        Position: (${result.bbox.x}, ${result.bbox.y}) &nbsp; 
+                        Size: ${result.bbox.width}×${result.bbox.height}
+                    </small>
+                </div>` : ''}
             </div>
         `;
     });
     
     html += '</div>';
     resultsContainer.innerHTML = html;
+}
+
+/**
+ * Draw bounding boxes on the video canvas overlay
+ * @param {Array} results - Detection results with bounding boxes
+ * @param {HTMLVideoElement} videoElement - Video element
+ * @param {HTMLCanvasElement} canvasOverlay - Canvas for drawing overlays
+ */
+function drawLiveDetectionBoxes(results, videoElement, canvasOverlay) {
+    if (!canvasOverlay || !videoElement || !results) return;
+    
+    const ctx = canvasOverlay.getContext('2d');
+    if (!ctx) return;
+    
+    // Make sure canvas dimensions match video dimensions
+    canvasOverlay.width = videoElement.videoWidth || videoElement.clientWidth;
+    canvasOverlay.height = videoElement.videoHeight || videoElement.clientHeight;
+    
+    // Clear previous drawings
+    ctx.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
+    
+    // Draw each bounding box
+    results.forEach(result => {
+        if (!result.bbox) return;
+        
+        const bbox = result.bbox;
+        const confidence = (result.confidence * 100).toFixed(1);
+        
+        // Draw bounding box
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#00ff00';  // Green
+        ctx.strokeRect(bbox.x, bbox.y, bbox.width, bbox.height);
+        
+        // Draw label background
+        const labelText = `${result.trash_type} ${confidence}%`;
+        const textMetrics = ctx.measureText(labelText);
+        const labelWidth = textMetrics.width + 10;
+        const labelHeight = 20;
+        
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+        ctx.fillRect(bbox.x, bbox.y - labelHeight, labelWidth, labelHeight);
+        
+        // Draw label text
+        ctx.fillStyle = '#000000';
+        ctx.font = '12px Arial';
+        ctx.fillText(labelText, bbox.x + 5, bbox.y - 5);
+    });
 }
 
 // Clean up when leaving the page

@@ -7,8 +7,9 @@
  * Display detection results
  * @param {Array} results - Array of detection results
  * @param {HTMLElement} container - Container element to display results in
+ * @param {HTMLImageElement|null} imageElement - Optional image element to draw bounding boxes on
  */
-function displayDetectionResults(results, container) {
+function displayDetectionResults(results, container, imageElement = null) {
     if (!container) return;
     
     // Clear loading spinner
@@ -17,6 +18,11 @@ function displayDetectionResults(results, container) {
     if (results.length === 0) {
         container.innerHTML = '<p class="text-center">No trash detected in the image.</p>';
         return;
+    }
+    
+    // If image element is provided and we have bounding boxes, create an overlay
+    if (imageElement && results.some(r => r.bbox)) {
+        drawBoundingBoxes(results, imageElement);
     }
     
     let html = '<h4>Detected Trash:</h4><div class="results-list">';
@@ -39,6 +45,13 @@ function displayDetectionResults(results, container) {
                             aria-valuenow="${confidence}" aria-valuemin="0" aria-valuemax="100">
                         </div>
                     </div>
+                    ${result.bbox ? `
+                    <div class="bbox-info mt-2">
+                        <small class="text-muted">
+                            Position: (${result.bbox.x}, ${result.bbox.y}) &nbsp; 
+                            Size: ${result.bbox.width}×${result.bbox.height}
+                        </small>
+                    </div>` : ''}
                 </div>
             </div>
         `;
@@ -46,6 +59,89 @@ function displayDetectionResults(results, container) {
     
     html += '</div>';
     container.innerHTML = html;
+}
+
+/**
+ * Draw bounding boxes on an image
+ * @param {Array} results - Array of detection results with bounding boxes
+ * @param {HTMLImageElement} imageElement - Image element to draw boxes on
+ */
+function drawBoundingBoxes(results, imageElement) {
+    // Get the parent container of the image
+    const parent = imageElement.parentElement;
+    if (!parent) return;
+    
+    // Make the parent position relative if it's not already
+    if (window.getComputedStyle(parent).position !== 'relative') {
+        parent.style.position = 'relative';
+    }
+    
+    // Remove any existing overlay
+    const existingOverlay = parent.querySelector('.detection-overlay');
+    if (existingOverlay) {
+        parent.removeChild(existingOverlay);
+    }
+    
+    // Create an overlay for drawing bounding boxes
+    const overlay = document.createElement('div');
+    overlay.className = 'detection-overlay';
+    overlay.style.position = 'absolute';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.pointerEvents = 'none';  // Don't interfere with clicks
+    
+    // Get the natural dimensions of the image
+    const imageWidth = imageElement.naturalWidth;
+    const imageHeight = imageElement.naturalHeight;
+    
+    // Get the displayed dimensions
+    const displayedWidth = imageElement.offsetWidth;
+    const displayedHeight = imageElement.offsetHeight;
+    
+    // Calculate scaling factors
+    const scaleX = displayedWidth / imageWidth;
+    const scaleY = displayedHeight / imageHeight;
+    
+    // Add bounding boxes to the overlay
+    results.forEach(result => {
+        if (!result.bbox) return;
+        
+        const bbox = result.bbox;
+        const confidence = (result.confidence * 100).toFixed(1);
+        
+        // Create a box element
+        const box = document.createElement('div');
+        box.className = 'bounding-box';
+        box.style.position = 'absolute';
+        box.style.left = `${bbox.x * scaleX}px`;
+        box.style.top = `${bbox.y * scaleY}px`;
+        box.style.width = `${bbox.width * scaleX}px`;
+        box.style.height = `${bbox.height * scaleY}px`;
+        box.style.border = '2px solid #00ff00';  // Green border
+        box.style.boxSizing = 'border-box';
+        
+        // Create a label with the trash type and confidence
+        const label = document.createElement('div');
+        label.className = 'bbox-label';
+        label.textContent = `${result.trash_type} ${confidence}%`;
+        label.style.position = 'absolute';
+        label.style.top = '-25px';
+        label.style.left = '0';
+        label.style.backgroundColor = 'rgba(0, 255, 0, 0.7)';
+        label.style.color = 'black';
+        label.style.padding = '2px 5px';
+        label.style.borderRadius = '3px';
+        label.style.fontSize = '12px';
+        label.style.fontWeight = 'bold';
+        
+        box.appendChild(label);
+        overlay.appendChild(box);
+    });
+    
+    // Add the overlay to the parent
+    parent.appendChild(overlay);
 }
 
 /**
