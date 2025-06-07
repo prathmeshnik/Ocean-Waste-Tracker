@@ -220,45 +220,69 @@ function handleFileSelect(e) {
  * @param {object} data - The server response data.
  * @param {HTMLElement} container - The HTML element to display results in.
  */
-function displayProcessedVideoAndResults(data, container) {
-    container.innerHTML = ''; // Clear previous content (e.g., spinner)
-    const resultsArea = container; // Use a more descriptive name internally
+function displayProcessedVideoAndResults(data, resultsContainerElement) { // resultsContainerElement is 'results-container'
+    const mediaPreviewContainer = document.getElementById('media-preview-server');
+
+    if (!mediaPreviewContainer) {
+        console.error("Media preview container '#media-preview-server' not found.");
+        resultsContainerElement.innerHTML = '<p class="text-danger">Error: UI element missing for media display.</p>';
+        return;
+    }
+
+    // Clear both containers
+    mediaPreviewContainer.innerHTML = '';
+    resultsContainerElement.innerHTML = '';
 
     if (data.processed_video_url) {
         // Handle processed video
-        const videoTitle = document.createElement('h4');
-        videoTitle.textContent = 'Processed Video:';
-        resultsArea.appendChild(videoTitle);
-
         const videoElement = document.createElement('video');
         videoElement.controls = true;
         videoElement.style.maxWidth = '100%';
         videoElement.style.display = 'block';
-        videoElement.style.marginBottom = '20px';
+        // videoElement.style.marginBottom = '20px'; // Parent div 'media-preview-server' has mb-3
         
         const sourceElement = document.createElement('source');
         sourceElement.src = data.processed_video_url;
         sourceElement.type = data.processed_video_type || 'video/mp4';
         videoElement.appendChild(sourceElement);
-        
         videoElement.appendChild(document.createTextNode('Your browser does not support the video tag.'));
-        resultsArea.appendChild(videoElement);
+        
+        mediaPreviewContainer.appendChild(videoElement); // VIDEO GOES INTO MEDIA PREVIEW
 
+        // Message and detection list (if any) go into resultsContainerElement
+        const videoResultsTitle = document.createElement('h4');
+        videoResultsTitle.textContent = 'Video Analysis:';
+        resultsContainerElement.appendChild(videoResultsTitle);
+        
         const reportMessage = document.createElement('p');
         reportMessage.innerHTML = 'Video processed successfully. Detailed analysis, including detected items and summaries, can be found in the <a href="/reports" class="alert-link">Reports section</a>.';
         reportMessage.className = 'alert alert-info mt-3';
-        resultsArea.appendChild(reportMessage);
+        resultsContainerElement.appendChild(reportMessage);
+
+        // If video detections are returned and you want to list them
+        if (data.detections && data.detections.length > 0) {
+            if (typeof displayDetectionResults === 'function') {
+                // displayDetectionResults can be used to list detections.
+                // For videos, the imageElement and canvasElement arguments will be null.
+                const detectionListTitle = document.createElement('h5');
+                detectionListTitle.textContent = 'Detected Items in Video (Summary):';
+                detectionListTitle.className = 'mt-3';
+                resultsContainerElement.appendChild(detectionListTitle);
+                displayDetectionResults(data.detections, resultsContainerElement, null, null);
+            }
+        } else if (data.detections && data.detections.length === 0) {
+            const noDetectionsMessage = document.createElement('p');
+            noDetectionsMessage.textContent = 'No specific items were detected in this video.';
+            noDetectionsMessage.className = 'text-muted mt-2';
+            resultsContainerElement.appendChild(noDetectionsMessage);
+        }
 
     } else if (data.image_url) {
         // Handle processed image
-        const imageTitle = document.createElement('h4');
-        imageTitle.textContent = 'Processed Image:';
-        resultsArea.appendChild(imageTitle);
-
         const imageDisplayContainer = document.createElement('div');
         imageDisplayContainer.style.position = 'relative';
         imageDisplayContainer.style.maxWidth = '600px'; // Or based on your layout needs
-        imageDisplayContainer.style.margin = '0 auto 20px auto'; // Center it
+        imageDisplayContainer.style.margin = '0 auto'; // Center it in mediaPreviewContainer
 
         const imgElement = document.createElement('img');
         imgElement.src = data.image_url;
@@ -275,11 +299,14 @@ function displayProcessedVideoAndResults(data, container) {
 
         imageDisplayContainer.appendChild(imgElement);
         imageDisplayContainer.appendChild(overlayCanvas);
-        resultsArea.appendChild(imageDisplayContainer);
+        mediaPreviewContainer.appendChild(imageDisplayContainer); // IMAGE AND CANVAS GO INTO MEDIA PREVIEW
 
-        const detectionListContainer = document.createElement('div');
-        detectionListContainer.id = 'image-detection-list-container'; // For styling or specific selection
-        resultsArea.appendChild(detectionListContainer);
+        // Detection list and summary go into resultsContainerElement
+        const imageResultsTitle = document.createElement('h4');
+        imageResultsTitle.textContent = 'Image Analysis:';
+        resultsContainerElement.appendChild(imageResultsTitle);
+
+        // const detectionListContainer = resultsContainerElement; // Use resultsContainerElement directly for list
 
         imgElement.onload = () => {
             // Set canvas dimensions after image is loaded to match displayed size
@@ -289,17 +316,17 @@ function displayProcessedVideoAndResults(data, container) {
             if (data.detections && data.detections.length > 0) {
                 if (typeof displayDetectionResults === 'function') {
                     // This function (from detect.js) will draw boxes and list items
-                    displayDetectionResults(data.detections, detectionListContainer, imgElement, overlayCanvas);
+                    displayDetectionResults(data.detections, resultsContainerElement, imgElement, overlayCanvas);
                 }
                 if (typeof generateSummary === 'function') {
                     const summaryContainer = document.createElement('div');
                     summaryContainer.id = 'image-summary-container';
                     summaryContainer.className = 'mt-3';
                     summaryContainer.innerHTML = generateSummary(data.detections);
-                    resultsArea.appendChild(summaryContainer);
+                    resultsContainerElement.appendChild(summaryContainer);
                 }
             } else {
-                detectionListContainer.innerHTML = `<p class="text-center">${data.message || 'No trash detected in the image.'}</p>`;
+                resultsContainerElement.innerHTML += `<p class="text-center">${data.message || 'No trash detected in the image.'}</p>`;
                 const ctx = overlayCanvas.getContext('2d'); // Clear canvas if no detections
                 ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             }
@@ -313,10 +340,10 @@ function displayProcessedVideoAndResults(data, container) {
         const messageP = document.createElement('p');
         messageP.className = 'alert alert-info';
         messageP.textContent = data.message;
-        resultsArea.appendChild(messageP);
+        resultsContainerElement.appendChild(messageP); // General messages go to resultsContainerElement
     } else {
         // This case should ideally not be reached if server response is structured
-        resultsArea.innerHTML = '<p class="text-warning">Processed data received in an unexpected format.</p>';
+        resultsContainerElement.innerHTML = '<p class="text-warning">Processed data received in an unexpected format.</p>';
     }
 }
 
