@@ -1,0 +1,32 @@
+# Python environment
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+# Virtual environments
+venv/
+env/
+
+# Environment variables
+.env
+.env.local
+
+# Logs and uploads
+static/uploads/*
+instance/*
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Misc unneeded files
+attached_assets/
