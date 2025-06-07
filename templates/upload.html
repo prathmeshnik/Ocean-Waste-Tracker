@@ -39,7 +39,7 @@
                             <div class="file-preview mb-3 text-center" style="display: none;"></div>
                             
                             <div class="form-text mb-3">
-                                <p><strong>Supported formats:</strong> JPG, JPEG, PNG, MP4, AVI, MOV</p>
+                                <p><strong>Supported formats:</strong> JPG, JPEG, PNG, MP4, AVI, MOV, MKV, WebM, WMV, FLV</p>
                                 <p><strong>Maximum file size:</strong> 16MB</p>
                             </div>
                             
@@ -65,9 +65,21 @@
                                     <img src="{{ url_for('static', filename='uploads/' + uploaded_filename) }}" class="img-fluid rounded" alt="Uploaded Image" id="processed-image-server" style="max-height: 400px;">
                                     <!-- Overlay canvas for drawing bounding boxes on images -->
                                     <canvas id="upload-overlay-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
-                                {% elif file_ext in ['mp4', 'avi', 'mov'] %}
+                                {% elif file_ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'wmv', 'flv'] %}
+                                    {% set video_type_suffix = file_ext %}
+                                    {% if file_ext == 'mov' %}
+                                        {% set video_type_suffix = 'quicktime' %}
+                                    {% elif file_ext == 'mkv' %}
+                                        {% set video_type_suffix = 'x-matroska' %}
+                                    {% elif file_ext == 'webm' %}
+                                        {% set video_type_suffix = 'webm' %}
+                                    {% elif file_ext == 'wmv' %}
+                                        {% set video_type_suffix = 'x-ms-wmv' %}
+                                    {% elif file_ext == 'flv' %}
+                                        {% set video_type_suffix = 'x-flv' %}
+                                    {% endif %}
                                     <video controls width="100%" class="img-fluid rounded" id="processed-video-server" style="max-height: 400px;">
-                                        <source src="{{ url_for('static', filename='uploads/' + uploaded_filename) }}" type="video/{{ file_ext if file_ext != 'mov' else 'quicktime' }}">
+                                        <source src="{{ url_for('static', filename='processed_videos/processed_' + uploaded_filename) }}" type="video/{{ video_type_suffix }}">
                                         Your browser does not support the video tag.
                                     </video>
                                 {% endif %}
