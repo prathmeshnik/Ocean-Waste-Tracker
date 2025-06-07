@@ -28,7 +28,21 @@
                             {% for detection in detections %}
                             <tr>
                                 <td>
-                                    <img src="{{ url_for('static', filename=detection.image_path.replace('static/', '')) }}" alt="Trash Image" class="img-thumbnail" width="100">
+                                    {# Determine file extension from image_path #}
+                                    {% set parts = detection.image_path.rsplit('.', 1) %}
+                                    {% set filename_part = parts[0] %}
+                                    {% set extension = parts[1].lower() if parts|length > 1 else '' %}
+
+                                    {% if extension in ['jpg', 'jpeg', 'png', 'gif'] %}
+                                        <img src="{{ url_for('static', filename=detection.image_path) }}" alt="Detection Image" class="img-thumbnail" width="100">
+                                    {% elif extension in ['mp4', 'avi', 'mov', 'webm'] %}
+                                        <video controls width="100" class="img-thumbnail">
+                                            <source src="{{ url_for('static', filename=detection.image_path) }}" type="video/{{ extension if extension != 'mov' else 'quicktime' }}">
+                                            Your browser does not support the video tag.
+                                        </video>
+                                    {% else %}
+                                        <span class="text-muted">[Media: {{ detection.image_path }}]</span>
+                                    {% endif %}
                                 </td>
                                 <td>{{ detection.trash_type }}</td>
                                 <td>{{ detection.detection_date.strftime('%B %d, %Y') }}</td>
@@ -41,7 +55,7 @@
             </div>
         </div>
         
-        <div class="row">
+        <div class="row mt-5">
             <div class="col-md-6 mb-4">
                 <div class="card shadow">
                     <div class="card-header">
@@ -49,6 +63,31 @@
                     </div>
                     <div class="card-body">
                         <canvas id="trash-type-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h3 class="m-0">Trash Types Breakdown</h3>
+                    </div>
+                    <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                        {% if summary and summary.trash_counts %}
+                            <ul class="list-group list-group-flush">
+                                {% for type, count in summary.trash_counts.items()|sort %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {{ type }}
+                                    <span>
+                                        <span class="badge bg-secondary rounded-pill me-2">{{ count }}</span>
+                                        <span class="badge bg-primary rounded-pill">{{ "%.1f"|format((count / summary.total_detections) * 100) }}%</span>
+                                    </span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted text-center">No trash type data available.</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -64,52 +103,46 @@
                 </div>
             </div>
         </div>
-        
-        <div class="card shadow">
+
+        <div class="card shadow mt-4">
             <div class="card-header">
                 <h3 class="m-0">Detection Summary</h3>
             </div>
             <div class="card-body">
+                {% if summary %}
                 <div class="row">
                     <div class="col-md-3 col-sm-6 mb-4">
                         <div class="text-center">
-                            <h2 class="text-primary">{{ detections|length }}</h2>
+                            <h2 class="text-primary">{{ summary.total_detections|default(0) }}</h2>
                             <p>Total Detections</p>
                         </div>
                     </div>
                     
-                    {% set trash_types = [] %}
-                    {% for detection in detections %}
-                        {% if detection.trash_type not in trash_types %}
-                            {% set trash_types = trash_types + [detection.trash_type] %}
-                        {% endif %}
-                    {% endfor %}
-                    
                     <div class="col-md-3 col-sm-6 mb-4">
                         <div class="text-center">
-                            <h2 class="text-primary">{{ trash_types|length }}</h2>
-                            <p>Trash Types</p>
+                            <h2 class="text-primary">{{ summary.unique_trash_types|default(0) }}</h2>
+                            <p>Unique Trash Types</p>
                         </div>
                     </div>
                     
                     <div class="col-md-3 col-sm-6 mb-4">
                         <div class="text-center">
                             <h2 class="text-primary">
-                                {% set avg_confidence = 0 %}
-                                {% for detection in detections %}
-                                    {% set avg_confidence = avg_confidence + detection.confidence %}
-                                {% endfor %}
-                                {{ "%.2f"|format(avg_confidence / detections|length * 100) }}%
+                                {% if summary.average_confidence %}
+                                    {{ "%.2f"|format(summary.average_confidence * 100) }}%
+                                {% else %}
+                                    0.00%
+                                {% endif %}
                             </h2>
                             <p>Avg. Confidence</p>
                         </div>
                     </div>
-                    
+
                     <div class="col-md-3 col-sm-6 mb-4">
                         <div class="text-center">
                             <h2 class="text-primary">
-                                {% if detections %}
-                                    {{ detections[0].detection_date.strftime('%b %d') }}
+                                {% if summary.latest_detection_date %}
+                                    {{ summary.latest_detection_date.strftime('%b %d, %Y') }}
                                 {% else %}
                                     -
                                 {% endif %}
@@ -118,6 +151,9 @@
                         </div>
                     </div>
                 </div>
+                {% else %}
+                <p class="text-muted text-center">Summary data is not available.</p>
+                {% endif %}
             </div>
         </div>
         
@@ -143,7 +179,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% if detections %}
+{% if summary and summary.total_detections > 0 %} {# Condition JS on having data for charts #}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Data for charts
@@ -154,16 +190,15 @@
         
         // Process detections for charts
         {% for detection in detections %}
-            // Count trash types
-            const trashType = "{{ detection.trash_type }}";
+            const trashType = {{ detection.trash_type|tojson }};
             if (detectionData.trashTypes[trashType]) {
                 detectionData.trashTypes[trashType]++;
             } else {
                 detectionData.trashTypes[trashType] = 1;
             }
             
-            // Count by date
-            const date = "{{ detection.detection_date.strftime('%Y-%m-%d') }}";
+            // Count by date - ensure detection_date is not None
+            const date = {{ detection.detection_date.strftime('%Y-%m-%d')|tojson if detection.detection_date else 'null'|tojson }};
             if (detectionData.dates[date]) {
                 detectionData.dates[date]++;
             } else {

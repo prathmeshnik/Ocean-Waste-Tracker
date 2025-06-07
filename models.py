@@ -34,15 +34,29 @@ class DetectionResult(db.Model):
     trash_type = db.Column(db.String(50), nullable=False)
     confidence = db.Column(db.Float, nullable=False)
     detection_date = db.Column(db.DateTime, default=datetime.utcnow)
+    bbox_x = db.Column(db.Integer, nullable=True) # Bounding box x-coordinate
+    bbox_y = db.Column(db.Integer, nullable=True) # Bounding box y-coordinate
+    bbox_width = db.Column(db.Integer, nullable=True) # Bounding box width
+    bbox_height = db.Column(db.Integer, nullable=True) # Bounding box height
     
     def __repr__(self):
         return f'<DetectionResult {self.id}>'
     
     def to_dict(self):
-        return {
+        result_dict = {
             'id': self.id,
             'image_path': self.image_path,
             'trash_type': self.trash_type,
             'confidence': self.confidence,
             'detection_date': self.detection_date.strftime('%Y-%m-%d %H:%M:%S')
         }
+        # Only add bbox key if all components are present
+        if self.bbox_x is not None and self.bbox_y is not None and \
+           self.bbox_width is not None and self.bbox_height is not None:
+            result_dict['bbox'] = {
+                'x': self.bbox_x,
+                'y': self.bbox_y,
+                'width': self.bbox_width,
+                'height': self.bbox_height
+            }
+        return result_dict

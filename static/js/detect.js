@@ -7,22 +7,41 @@
  * Display detection results
  * @param {Array} results - Array of detection results
  * @param {HTMLElement} container - Container element to display results in
- * @param {HTMLImageElement|null} imageElement - Optional image element to draw bounding boxes on
+ * @param {HTMLImageElement|null} imageElement - Optional image element (for scaling and context).
+ *  @param {HTMLCanvasElement|null} overlayCanvas - Optional canvas element to draw bounding boxes on.
  */
-function displayDetectionResults(results, container, imageElement = null) {
-    if (!container) return;
-    
-    // Clear loading spinner
-    hideSpinner(container);
-    
-    if (results.length === 0) {
-        container.innerHTML = '<p class="text-center">No trash detected in the image.</p>';
+function displayDetectionResults(results, container, imageElement = null, overlayCanvas = null) {
+    if (!container) {
+        console.error("DETECT.JS: displayDetectionResults called with no container element.");
         return;
     }
     
-    // If image element is provided and we have bounding boxes, create an overlay
-    if (imageElement && results.some(r => r.bbox)) {
-        drawBoundingBoxes(results, imageElement);
+    // Clear loading spinner (assuming hideSpinner is globally available from main.js)
+    hideSpinner(container);
+    
+    if (!results || results.length === 0) {
+        container.innerHTML = '<p class="text-center">No trash detected in the image.</p>';
+        // Clear overlay canvas if it exists and no results
+        if (overlayCanvas) {
+            const ctx = overlayCanvas.getContext('2d');
+            // It's good practice to set canvas size even if clearing,
+            // especially if imageElement might not be fully loaded yet or is null.
+            // If imageElement is present, match its current displayed size.
+            if (imageElement && imageElement.clientWidth > 0 && imageElement.clientHeight > 0) {
+                overlayCanvas.width = imageElement.clientWidth;
+                overlayCanvas.height = imageElement.clientHeight;
+            } else if (!imageElement && overlayCanvas.dataset.defaultWidth) { // Fallback if no image
+                overlayCanvas.width = parseInt(overlayCanvas.dataset.defaultWidth);
+                overlayCanvas.height = parseInt(overlayCanvas.dataset.defaultHeight);
+            }
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        }
+        return;
+    }
+    
+    // If image element and overlayCanvas are provided, and we have bounding boxes, draw them
+    if (imageElement && overlayCanvas && results.some(r => r.bbox)) {
+        drawBoundingBoxes(results, imageElement, overlayCanvas);
     }
     
     let html = '<h4>Detected Trash:</h4><div class="results-list">';
@@ -64,84 +83,74 @@ function displayDetectionResults(results, container, imageElement = null) {
 /**
  * Draw bounding boxes on an image
  * @param {Array} results - Array of detection results with bounding boxes
- * @param {HTMLImageElement} imageElement - Image element to draw boxes on
+ * @param {HTMLImageElement} imageElement - Image element (used for scaling context).
+ * @param {HTMLCanvasElement} overlayCanvas - The canvas element to draw boxes on.
  */
-function drawBoundingBoxes(results, imageElement) {
-    // Get the parent container of the image
-    const parent = imageElement.parentElement;
-    if (!parent) return;
-    
-    // Make the parent position relative if it's not already
-    if (window.getComputedStyle(parent).position !== 'relative') {
-        parent.style.position = 'relative';
+function drawBoundingBoxes(results, imageElement, overlayCanvas) {
+    if (!overlayCanvas || !imageElement || !results) {
+        console.warn("DETECT.JS: drawBoundingBoxes called with missing arguments or no results.");
+        return;
     }
     
-    // Remove any existing overlay
-    const existingOverlay = parent.querySelector('.detection-overlay');
-    if (existingOverlay) {
-        parent.removeChild(existingOverlay);
+    const ctx = overlayCanvas.getContext('2d');
+    if (!ctx) {
+        console.error("DETECT.JS: Could not get 2D context from overlay canvas.");
+        return;
     }
+
+    // Set canvas dimensions to match the displayed image size.
+    // This is crucial for correct positioning of bounding boxes.
+    // The image might be scaled by CSS, so use clientWidth/Height.
+    overlayCanvas.width = imageElement.clientWidth;
+    overlayCanvas.height = imageElement.clientHeight;
     
-    // Create an overlay for drawing bounding boxes
-    const overlay = document.createElement('div');
-    overlay.className = 'detection-overlay';
-    overlay.style.position = 'absolute';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
-    overlay.style.pointerEvents = 'none';  // Don't interfere with clicks
+    // Get the natural dimensions of the image (original size)
+    // Fallback to offsetWidth/Height if natural dimensions are 0 (e.g., image not fully loaded, though we try to wait)
+    const naturalWidth = imageElement.naturalWidth || imageElement.offsetWidth;
+    const naturalHeight = imageElement.naturalHeight || imageElement.offsetHeight;
+
+    if (naturalWidth === 0 || naturalHeight === 0) {
+        console.warn("DETECT.JS: Image natural dimensions are zero. Cannot calculate scale for bounding boxes accurately. Ensure image is loaded.");
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); // Clear if we can't draw
+        return;
+    }
+
+    // Calculate scaling factors: (displayed size / original size)
+    const scaleX = overlayCanvas.width / naturalWidth;
+    const scaleY = overlayCanvas.height / naturalHeight;
     
-    // Get the natural dimensions of the image
-    const imageWidth = imageElement.naturalWidth;
-    const imageHeight = imageElement.naturalHeight;
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); // Clear previous drawings
     
-    // Get the displayed dimensions
-    const displayedWidth = imageElement.offsetWidth;
-    const displayedHeight = imageElement.offsetHeight;
-    
-    // Calculate scaling factors
-    const scaleX = displayedWidth / imageWidth;
-    const scaleY = displayedHeight / imageHeight;
-    
-    // Add bounding boxes to the overlay
     results.forEach(result => {
         if (!result.bbox) return;
         
         const bbox = result.bbox;
         const confidence = (result.confidence * 100).toFixed(1);
         
-        // Create a box element
-        const box = document.createElement('div');
-        box.className = 'bounding-box';
-        box.style.position = 'absolute';
-        box.style.left = `${bbox.x * scaleX}px`;
-        box.style.top = `${bbox.y * scaleY}px`;
-        box.style.width = `${bbox.width * scaleX}px`;
-        box.style.height = `${bbox.height * scaleY}px`;
-        box.style.border = '2px solid #00ff00';  // Green border
-        box.style.boxSizing = 'border-box';
+        // Scale and draw bounding box
+        const x = bbox.x * scaleX;
+        const y = bbox.y * scaleY;
+        const width = bbox.width * scaleX;
+        const height = bbox.height * scaleY;
         
-        // Create a label with the trash type and confidence
-        const label = document.createElement('div');
-        label.className = 'bbox-label';
-        label.textContent = `${result.trash_type} ${confidence}%`;
-        label.style.position = 'absolute';
-        label.style.top = '-25px';
-        label.style.left = '0';
-        label.style.backgroundColor = 'rgba(0, 255, 0, 0.7)';
-        label.style.color = 'black';
-        label.style.padding = '2px 5px';
-        label.style.borderRadius = '3px';
-        label.style.fontSize = '12px';
-        label.style.fontWeight = 'bold';
+        ctx.strokeStyle = '#00FF00'; // Green
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
         
-        box.appendChild(label);
-        overlay.appendChild(box);
+        // Draw label background
+        const labelText = `${result.trash_type} ${confidence}%`;
+        ctx.font = '12px Arial'; // Set font before measuring text
+        const textMetrics = ctx.measureText(labelText);
+        const labelWidth = textMetrics.width + 10; // Add some padding
+        const labelHeight = 18; // Adjusted for padding
+        
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+        ctx.fillRect(x, y - labelHeight, labelWidth, labelHeight);
+        
+        // Draw label text
+        ctx.fillStyle = '#000000'; // Black text
+        ctx.fillText(labelText, x + 5, y - 5); // Adjust y for text position within label bg
     });
-    
-    // Add the overlay to the parent
-    parent.appendChild(overlay);
 }
 
 /**

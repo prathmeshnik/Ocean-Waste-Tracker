@@ -27,12 +27,21 @@ class RegistrationForm(FlaskForm):
         if user:
             raise ValidationError('That email is already registered. Please use a different one.')
 
+# class UploadForm(FlaskForm):
+#     file = FileField('Choose File', validators=[
+#         FileRequired(),
+#         FileAllowed(['jpg', 'jpeg', 'png', 'mp4', 'avi', 'mov'], 'Images and videos only!')
+#     ])
+#     submit = SubmitField('Upload')
+
+# d:\PRATHMESH NIKAM\Downloads\VS\OceanWasteTracker(devesh)\OceanWasteTracker\forms.py
 class UploadForm(FlaskForm):
     file = FileField('Choose File', validators=[
         FileRequired(),
         FileAllowed(['jpg', 'jpeg', 'png', 'mp4', 'avi', 'mov'], 'Images and videos only!')
     ])
-    submit = SubmitField('Upload')
+    submit = SubmitField('Upload') # <--- This field is named 'submit'
+
 
 class ContactForm(FlaskForm):
     full_name = StringField('Full Name', validators=[DataRequired(), Length(min=2, max=50)])

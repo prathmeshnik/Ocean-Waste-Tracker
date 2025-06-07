@@ -57,14 +57,32 @@
                         <h3 class="m-0">Result</h3>
                     </div>
                     <div class="card-body">
-                        <div class="results-area" id="results-container">
+                        <!-- This div will hold the media preview (image/video) and overlay canvas -->
+                        <div id="media-preview-server" class="mb-3 text-center" style="position: relative;"> {# Parent needs position:relative for absolute canvas #}
+                            {% if uploaded_filename %}
+                                {% set file_ext = uploaded_filename.rsplit('.', 1)[1].lower() %}
+                                {% if file_ext in ['jpg', 'jpeg', 'png'] %}
+                                    <img src="{{ url_for('static', filename='uploads/' + uploaded_filename) }}" class="img-fluid rounded" alt="Uploaded Image" id="processed-image-server" style="max-height: 400px;">
+                                    <!-- Overlay canvas for drawing bounding boxes on images -->
+                                    <canvas id="upload-overlay-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+                                {% elif file_ext in ['mp4', 'avi', 'mov'] %}
+                                    <video controls width="100%" class="img-fluid rounded" id="processed-video-server" style="max-height: 400px;">
+                                        <source src="{{ url_for('static', filename='uploads/' + uploaded_filename) }}" type="video/{{ file_ext if file_ext != 'mov' else 'quicktime' }}">
+                                        Your browser does not support the video tag.
+                                    </video>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        <!-- This div is where displayDetectionResults will render the list -->
+                        <div class="results-area" id="results-container"> 
                             <div class="text-center py-5">
                                 <i class="fas fa-info-circle fa-3x mb-3 text-muted"></i>
                                 <p class="lead">Upload an image or video to see detection results here.</p>
                             </div>
                         </div>
                     </div>
-                </div>
+                </div> <!-- End of Result Card -->
+
                 
                 <div class="card shadow mt-4">
                     <div class="card-header">
@@ -72,13 +90,25 @@
                     </div>
                     <div class="card-body">
                         <p>This section will display the detailed analysis and report of the uploaded image.</p>
-                        <p class="text-muted">Reports include:</p>
-                        <ul class="text-muted">
-                            <li>Types of trash detected</li>
-                            <li>Confidence levels for each detection</li>
-                            <li>Visual representation of results</li>
-                        </ul>
-                    </div>
+                        {% if results is defined and results %}
+                            <h5 class="mt-3">Detection Summary:</h5>
+                            <ul class="list-group">
+                                {% for item in results %}
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        {{ item.trash_type }}
+                                        <span class="badge bg-primary rounded-pill">{{ "%.2f"|format(item.confidence * 100) }}%</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            {% if not results %}
+                                <p class="text-muted mt-3">No specific items detected in the uploaded file.</p>
+                            {% endif %}
+                        {% elif uploaded_filename %}
+                            <p class="text-muted mt-3">File processed, but no specific items were detected by the model.</p>
+                        {% else %}
+                            <p class="text-muted mt-3">Upload a file to see its report here.</p>
+                        {% endif %}
+                    </div> <!-- End of Report Card Body -->
                 </div>
             </div>
         </div>
@@ -89,4 +119,48 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
 <script src="{{ url_for('static', filename='js/detect.js') }}"></script>
+
+{# This script block runs if the server has processed a file and sent back results #}
+{% if uploaded_filename and results is defined %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const detectionResultsFromServer = {{ results|tojson|safe }};
+        console.log("Server detection results received by template:", detectionResultsFromServer);
+
+        const resultsListContainer = document.getElementById('results-container'); // Target for the list of detections
+        const imageElementServer = document.getElementById('processed-image-server'); // The <img> tag if it's an image
+        const overlayCanvasUpload = document.getElementById('upload-overlay-canvas'); // The overlay canvas for images
+        // const videoElementServer = document.getElementById('processed-video-server'); // The <video> tag if it's a video
+
+        if (!resultsListContainer) {
+            console.error("Error: '#results-container' div not found in the DOM.");
+            return;
+        }
+
+        // Clear the placeholder from results-container
+        resultsListContainer.innerHTML = ''; 
+
+        if (detectionResultsFromServer && detectionResultsFromServer.length > 0) {
+            if (imageElementServer && overlayCanvasUpload) {
+                // If it's an image, ensure it's loaded before drawing bounding boxes
+                const displayFunc = () => displayDetectionResults(detectionResultsFromServer, resultsListContainer, imageElementServer, overlayCanvasUpload);
+                if (imageElementServer.complete && imageElementServer.naturalHeight !== 0) { // Check naturalHeight too for better load detection
+                    console.log("Processed image already complete, displaying results.");
+                    displayFunc();
+                } else {
+                    console.log("Processed image not yet complete, adding load listener.");
+                    imageElementServer.addEventListener('load', displayFunc);
+                    imageElementServer.addEventListener('error', function() { console.error("Error loading processed image."); });
+                }
+            } else {
+                // For videos or if no image preview, just display the list (no overlay canvas needed for video list)
+                displayDetectionResults(detectionResultsFromServer, resultsListContainer, null, null);
+            }
+        } else {
+            // No detections, or results array is empty
+            resultsListContainer.innerHTML = '<p class="text-center text-muted">No trash detected in the uploaded file.</p>';
+        }
+    });
+</script>
+{% endif %}
 {% endblock %}

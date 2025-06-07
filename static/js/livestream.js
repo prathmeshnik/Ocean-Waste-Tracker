@@ -40,6 +40,14 @@ function initLivestreamPage() {
 async function startStreaming() {
     if (isStreaming) return;
     
+    // Check for MediaDevices and getUserMedia support
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        const errorMessage = 'Camera access (getUserMedia) is not supported by your browser or the page is not served in a secure context (HTTPS or localhost). Please access via http://localhost:5000 or http://127.0.0.1:5000 for HTTP.';
+        console.error(errorMessage);
+        showError(errorMessage); // Assuming showError is a global function from main.js or similar
+        return;
+    }
+
     try {
         // Access the user's camera
         stream = await navigator.mediaDevices.getUserMedia({ 
