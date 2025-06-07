@@ -144,7 +144,7 @@ def upload():
                 yolo_raw_results = yolo_model(img_pil, verbose=False) # verbose=False to reduce console spam
                 current_app.logger.debug(f"Raw YOLO results for image: {yolo_raw_results}")
 
-                model_names = yolo_model.names if hasattr(yolo_model, 'names') else {i: f'class_{i}' for i in range(80)}
+                model_names = yolo_model.names if hasattr(yolo_model, 'names') and yolo_model.names else {i: f'class_{i}' for i in range(80)}
                 detection_results_list = parse_yolo_results_for_db(yolo_raw_results, model_names)
                 current_app.logger.info(f"YOLO image detection results: {detection_results_list}")
 
@@ -152,9 +152,10 @@ def upload():
                 current_app.logger.info(f"Starting full video processing with YOLO: {absolute_file_path}")
 
                 # Define output path for processed video
+                output_extension = '.mp4' # Standardize output to MP4
                 input_filename_base = os.path.splitext(filename)[0] # Contains UUID and original name
-                processed_video_filename = f"processed_{input_filename_base}{file_ext}"
-                processed_video_path_abs = os.path.join(app.config['PROCESSED_FOLDER'], processed_video_filename)
+                processed_video_filename = f"processed_{input_filename_base}{output_extension}" # Always .mp4
+                processed_video_path_abs = os.path.join(app.config['PROCESSED_FOLDER'], processed_video_filename) # Absolute path
                 processed_video_url_for_frontend = url_for('static', filename=f'processed_videos/{processed_video_filename}')
 
                 cap = cv2.VideoCapture(absolute_file_path)
@@ -162,23 +163,30 @@ def upload():
                     current_app.logger.error(f"Could not open video file for processing: {absolute_file_path}")
                     return jsonify({"success": False, "message": "Could not open video file."}), 500
 
-                fps = cap.get(cv2.CAP_PROP_FPS)
+                fps = cap.get(cv2.CAP_PROP_FPS) # Get FPS from original video
+                if fps <= 0 or fps > 120: # Sanity check and default for FPS
+                    current_app.logger.warning(f"Original video FPS ({fps}) is invalid or out of range. Defaulting to 25 FPS for output.")
+                    fps = 25.0
+
                 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 
-                if file_ext == '.mp4':
-                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                elif file_ext == '.avi':
-                    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                else:
-                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                # Use H.264 (avc1) for MP4 output. Fallback to mp4v if avc1 fails.
+                # H.264 is highly compatible for web playback.
+                fourcc_h264 = cv2.VideoWriter_fourcc(*'avc1') # Preferred for MP4/H.264
+                fourcc_mp4v = cv2.VideoWriter_fourcc(*'mp4v') # Fallback MPEG-4
 
-                out_writer = cv2.VideoWriter(processed_video_path_abs, fourcc, fps, (frame_width, frame_height))
+                out_writer = cv2.VideoWriter(processed_video_path_abs, fourcc_h264, fps, (frame_width, frame_height))
+                
                 if not out_writer.isOpened():
-                    current_app.logger.error(f"Could not open VideoWriter for: {processed_video_path_abs}")
+                    current_app.logger.warning(f"VideoWriter failed to open with H.264 (avc1) for {processed_video_path_abs}. Trying fallback MPEG-4 (mp4v).")
+                    out_writer = cv2.VideoWriter(processed_video_path_abs, fourcc_mp4v, fps, (frame_width, frame_height))
+
+                if not out_writer.isOpened():
+                    current_app.logger.error(f"Could not open VideoWriter for: {processed_video_path_abs} even with fallback FourCC.")
                     cap.release()
                     return jsonify({"success": False, "message": "Could not initialize video writer for output."}), 500
-
+                current_app.logger.info(f"VideoWriter opened successfully for {processed_video_path_abs}")
                 all_video_detections_summary = [] # Store aggregated detections for JSON response
 
                 while True:
@@ -189,7 +197,7 @@ def upload():
                     img_rgb = cv2.cvtColor(frame_cv2, cv2.COLOR_BGR2RGB)
                     yolo_raw_results = yolo_model(img_rgb, verbose=False)
                     
-                    model_names = yolo_model.names if hasattr(yolo_model, 'names') else {i: f'class_{i}' for i in range(80)}
+                    model_names = yolo_model.names if hasattr(yolo_model, 'names') and yolo_model.names else {i: f'class_{i}' for i in range(80)}
                     frame_detections = parse_yolo_results_for_db(yolo_raw_results, model_names)
                     
                     for det in frame_detections:
@@ -239,11 +247,11 @@ def upload():
                 current_app.logger.info("No detections found by YOLO, nothing to save to database for this file.")
 
             # Return JSON response based on file type
-            if file_ext in ['.mp4', '.avi', '.mov']:
+            if file_ext in ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.wmv', '.flv']: # Check original extension
                 return jsonify({
                     "success": True,
-                    "processed_video_url": processed_video_url_for_frontend,
-                    "processed_video_type": file.mimetype, 
+                    "processed_video_url": processed_video_url_for_frontend, # URL to the processed .mp4 file
+                    "processed_video_type": "video/mp4", # MIME type is now consistently video/mp4
                     "detections": all_video_detections_summary 
                 })
             elif file_ext in ['.jpg', '.jpeg', '.png']:
@@ -293,7 +301,7 @@ def process_frame():
         img_rgb = cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB)
         
         yolo_raw_results = yolo_model(img_rgb, verbose=False)
-        model_names = yolo_model.names if hasattr(yolo_model, 'names') else {i: f'class_{i}' for i in range(80)}
+        model_names = yolo_model.names if hasattr(yolo_model, 'names') and yolo_model.names else {i: f'class_{i}' for i in range(80)}
         detection_results_list = parse_yolo_results_for_db(yolo_raw_results, model_names)
 
         # Save significant detections to database (optional for livestream, adjust as needed)
